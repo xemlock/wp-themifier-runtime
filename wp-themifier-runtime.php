@@ -57,7 +57,7 @@ function themifier_get_language($property = null) // {{{
             $fallback_language = (object) array(
                 'name'       => $data['native_name'],
                 'locale'     => $data['language'],
-                'slug'       => get_lang_code($data['language']),
+                'slug'       => themifier_lang_code($data['language']),
                 'home_url'   => home_url(),
                 'search_url' => home_url(),
             );
