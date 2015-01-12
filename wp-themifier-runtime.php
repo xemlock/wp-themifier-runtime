@@ -318,7 +318,29 @@ function themifier_check_language() // {{{
     }
 } // }}}
 
+/**
+ * Filter that sets up a default redirection URL after successful logout.
+ *
+ * @param  string $logout_url
+ * @param  string $redirect OPTIONAL
+ * @return string
+ */
+function themifier_logout_url($logout_url, $redirect = '') // {{{
+{
+    if (empty($redirect)) {
+        $redirect = urlencode(themifier_home_url());
+    }
+    if (strpos($logout_url, '?') === false) {
+        $logout_url .= '?redirect_to=' . $redirect;
+    } else {
+        $logout_url .= '&redirect_to=' . $redirect;
+    }
+
+    return $logout_url;
+} // }}}
+
 // if this file is the WP execution context register plugin hooks
 if (defined('ABSPATH')) {
     add_action('wp_head', 'themifier_check_language');
+    add_filter('logout_url', 'themifier_logout_url', 10, 1);
 }
