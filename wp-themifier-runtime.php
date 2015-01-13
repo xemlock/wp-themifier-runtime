@@ -339,6 +339,49 @@ function themifier_logout_url($logout_url, $redirect = '') // {{{
     return $logout_url;
 } // }}}
 
+function themifier_nav_menu($theme_location, array $options = array())
+{
+    if (isset($options['echo'])) {
+        $echo = (bool) $options['echo'];
+        unset($options['echo']);
+    } else {
+        $echo = true;
+    }
+
+    $defaults = array(
+        'container'   => 'nav',
+        'depth'       => 2,
+        'walker'      => null,
+        'fallback_cb' => null,
+        'items_wrap'  => '<ul id="{id}" class="{class}">{items}</ul>',
+        'echo'        => false,
+    );
+    $options = array_merge($defaults, $options);
+
+    $options['theme_location'] = (string) $theme_location;
+    $options['items_wrap'] = strtr($options['items_wrap'], array(
+        '{id}'    => '%1$s', // options[menu_id]
+        '{class}' => '%2$s', // options[menu_class]
+        '{items}' => '%3$s',
+    ));
+
+    if (empty($options['walker'])) {
+        require_once dirname(__FILE__) . '/bootstrap-navwalker.php';
+
+        $options['walker'] = new themifier_bootstrap_navwalker();
+        $options['fallback_cb'] = 'wp_bootstrap_navwalker::fallback';
+    }
+
+    // wp-includes/nav-menu-template.php
+    $menu = wp_nav_menu($options);
+
+    if ($options['echo']) {
+        echo $menu;
+    } else {
+        return $menu;
+    }
+}
+
 // if this file is the WP execution context register plugin hooks
 if (defined('ABSPATH')) {
     add_action('wp_head', 'themifier_check_language');
