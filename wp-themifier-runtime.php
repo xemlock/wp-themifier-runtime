@@ -339,15 +339,15 @@ function themifier_logout_url($logout_url, $redirect = '') // {{{
     return $logout_url;
 } // }}}
 
-function themifier_nav_menu($theme_location, array $options = array())
+/**
+ * Render navigation menu.
+ *
+ * @param  string $theme_location
+ * @param  array $options OPTIONAL
+ * @return string|void
+ */
+function themifier_nav_menu($theme_location, array $options = array()) // {{{
 {
-    if (isset($options['echo'])) {
-        $echo = (bool) $options['echo'];
-        unset($options['echo']);
-    } else {
-        $echo = true;
-    }
-
     $defaults = array(
         'container'   => 'nav',
         'depth'       => 2,
@@ -380,7 +380,7 @@ function themifier_nav_menu($theme_location, array $options = array())
     } else {
         return $menu;
     }
-}
+} // }}}
 
 // if this file is the WP execution context register plugin hooks
 if (defined('ABSPATH')) {
