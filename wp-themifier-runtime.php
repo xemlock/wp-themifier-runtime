@@ -342,11 +342,10 @@ function themifier_logout_url($logout_url, $redirect = '') // {{{
 /**
  * Render navigation menu.
  *
- * @param  string $theme_location
- * @param  array $options OPTIONAL
+ * @param  array|string $options OPTIONAL
  * @return string|void
  */
-function themifier_nav_menu($theme_location, array $options = array()) // {{{
+function themifier_nav_menu($options = null) // {{{
 {
     $defaults = array(
         'container'   => 'nav',
@@ -356,7 +355,7 @@ function themifier_nav_menu($theme_location, array $options = array()) // {{{
         'items_wrap'  => '<ul id="{id}" class="{class}">{items}</ul>',
         'echo'        => false,
     );
-    $options = array_merge($defaults, $options);
+    $options = wp_parse_args($options, $defaults);
 
     $options['theme_location'] = (string) $theme_location;
     $options['items_wrap'] = strtr($options['items_wrap'], array(
@@ -392,6 +391,7 @@ function themifier_filter_content($content) // {{{
 {
     $content = apply_filters('the_content', $content);
     $content = str_replace(']]>', ']]&gt;', $content);
+    $content = trim($content);
     return $content;
 } // }}}
 
@@ -402,9 +402,15 @@ function themifier_filter_content($content) // {{{
  */
 function themifier_get_content($post_id = null, $property = null) // {{{
 {
-    // cache, so that consecutive calls on the same post use already computed
-    // values (such as in the loop)
-    static $_extended;
+    // store last retrieved post's data to avoid unnecessary computations
+    // for previously processed post (such as in the loop)
+    // to reset this storage pass -1 for post_id
+    static $result;
+
+    if ($post_id === -1) {
+        $result = null;
+        return '';
+    }
 
     if ($property === null) {
         return themifier_filter_content(get_the_content());
@@ -416,9 +422,9 @@ function themifier_get_content($post_id = null, $property = null) // {{{
         return '';
     }
 
-    if (empty($_extended) || $_extended['ID'] !== $post->ID) {
+    if (empty($result) || $result['ID'] !== $post->ID) {
         $extended = get_extended($post->post_content);
-        $_extended = array(
+        $result = array(
             'ID'       => $post->ID,
             'main'     => themifier_filter_content($extended['main']),
             'extended' => themifier_filter_content($extended['extended']),
@@ -426,7 +432,169 @@ function themifier_get_content($post_id = null, $property = null) // {{{
         );
     }
 
-    return isset($_extended[$property]) ? $_extended[$property] : '';
+    return isset($result[$property]) ? $result[$property] : '';
+} // }}}
+
+/**
+ * For arguments description see {@see wp_list_categories()}.
+ *
+ * Additional argument is supported if no walker is passed. count_wrap formats
+ * item count in category.
+ *
+ * @param  array|string $args
+ * @return string
+ */
+function themifier_list_categories($args = null) // {{{
+{
+    $defaults = array(
+        'count_wrap'        => ' (%s)',
+        'count_inside_link' => false,
+    );
+    $args = wp_parse_args($args, $defaults);
+
+    if (empty($args['walker'])) {
+        require_once dirname(__FILE__) . '/walker-category.php';
+        $args['walker'] = new themifier_walker_category();
+    }
+
+    return wp_list_categories($args);
+} // }}}
+
+/**
+ * @param int $term_id
+ * @return array
+ */
+function themifier_get_category_parents($term_id, array &$visited = array()) // {{{
+{
+    $term_id = intval($term_id);
+
+    if (!isset($visited[$term_id])) {
+        $parent = get_term($term_id, 'category');
+        $visited[$term_id] = $parent && !is_wp_error($parent) ? $parent : false;
+    } else {
+        $parent = $visited[$term_id];
+    }
+
+    if ($parent) {
+        if ($parent->parent) {
+            $parents = themifier_get_category_parents($parent->parent, $visited);
+        } else {
+            $parents = array();
+        }
+        return array_merge(array($parent), $parents);
+    }
+
+    return array();
+} // }}}
+
+/**
+ * @return array
+ */
+function themifier_get_breadcrumbs() // {{{
+{
+    if (is_home()) {
+        return array();
+    }
+
+    $breadcrumbs = array(
+        array(
+            'label' => __('Home'),
+            'url'   => themifier_home_url(),
+        ),
+    );
+
+    switch (true) {
+        case is_category():
+            $obj = get_queried_object(); // category
+            if ($obj && isset($obj->term_id)) {
+                $parents = array();
+                foreach (themifier_get_category_parents($obj->term_id) as $parent) {
+                    array_unshift($parents, array(
+                        'label' => $parent->name,
+                        'url'   => get_category_link($parent->term_id),
+                    ));
+                }
+                $breadcrumbs = array_merge($breadcrumbs, $parents);
+            }
+            break;
+
+        case is_page():
+            $breadcrumbs[] = array(
+                'label' => the_title('', '', false),
+                'url'   => get_permalink(),
+            );
+            break;
+
+        case is_tag():
+            $breadcrumbs[] = array(
+                'label' => single_tag_title('', false),
+                'url'   => get_tag_link(get_queried_object_id()),
+            );
+            break;
+
+        case is_day():
+        case is_month():
+        case is_year():
+        case is_single():
+            $year = get_the_time('Y');
+            $month = get_the_time('m');
+            $day = get_the_time('j');
+
+            $breadcrumbs[] = array(
+                'label' => $year,
+                'url'   => get_year_link($year),
+            );
+
+            if (is_month() || is_day() || is_single()) {
+                $breadcrumbs[] = array(
+                    'label' => get_the_time('F'),
+                    'url'   => get_month_link($year, $month),
+                );
+            }
+            if (is_day() || is_single()) {
+                $breadcrumbs[] = array(
+                    'label' => $day,
+                    'url'   => get_day_link($year, $month, $day),
+                );
+            }
+            if (is_single()) {
+                $breadcrumbs[] = array(
+                    'label' => get_the_title(),
+                    'url'   => get_permalink(),
+                );
+            }
+            break;
+
+        case is_author():
+            $breadcrumbs[] = array(
+                'label' => get_the_author(),
+                'url'   => get_the_author_meta('url'),
+            );
+            break;
+
+        case is_search():
+            $breadcrumbs[] = array(
+                'label' => _x('Search', 'Search widget'),
+                'url'   => themifier_home_url() . '?s=' . urlencode($_GET['s']),
+            );
+            break;
+
+        case is_404():
+            $breadcrumbs[] = array(
+                'label' => __('Page not found'),
+                'url'   => null,
+            );
+            break;
+    }
+
+    if (get_query_var('page') > 1) {
+        $breadcrumbs[] = array(
+            'label' => sprintf(__('Page %s'), (int) get_query_var('page')),
+            'url'   => null,
+        );
+    }
+
+    return $breadcrumbs;
 } // }}}
 
 // if this file is the WP execution context register plugin hooks
