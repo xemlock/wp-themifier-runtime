@@ -382,6 +382,53 @@ function themifier_nav_menu($theme_location, array $options = array()) // {{{
     }
 } // }}}
 
+/**
+ * Filter content as the_content() function would do.
+ *
+ * @param  string $content
+ * @return string
+ */
+function themifier_filter_content($content) // {{{
+{
+    $content = apply_filters('the_content', $content);
+    $content = str_replace(']]>', ']]&gt;', $content);
+    return $content;
+} // }}}
+
+/**
+ * @param  int|WP_Post $post_id OPTIONAL
+ * @param  string $property OPTIONAL
+ * @return string
+ */
+function themifier_get_content($post_id = null, $property = null) // {{{
+{
+    // cache, so that consecutive calls on the same post use already computed
+    // values (such as in the loop)
+    static $_extended;
+
+    if ($property === null) {
+        return themifier_filter_content(get_the_content());
+    }
+
+    $post = get_post($post_id);
+
+    if (empty($post)) {
+        return '';
+    }
+
+    if (empty($_extended) || $_extended['ID'] !== $post->ID) {
+        $extended = get_extended($post->post_content);
+        $_extended = array(
+            'ID'       => $post->ID,
+            'main'     => themifier_filter_content($extended['main']),
+            'extended' => themifier_filter_content($extended['extended']),
+            'more'     => $extended['more'], // TODO should this be filtered?
+        );
+    }
+
+    return isset($_extended[$property]) ? $_extended[$property] : '';
+} // }}}
+
 // if this file is the WP execution context register plugin hooks
 if (defined('ABSPATH')) {
     add_action('wp_head', 'themifier_check_language');
