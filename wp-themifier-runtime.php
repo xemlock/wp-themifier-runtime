@@ -447,8 +447,7 @@ function themifier_get_content($post_id = null, $property = null) // {{{
 function themifier_list_categories($args = null) // {{{
 {
     $defaults = array(
-        'count_wrap'        => ' (%s)',
-        'count_inside_link' => false,
+        'item_format' => null,
     );
     $args = wp_parse_args($args, $defaults);
 
