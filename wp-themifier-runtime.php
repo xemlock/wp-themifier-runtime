@@ -486,114 +486,150 @@ function themifier_get_category_parents($term_id, array &$visited = array()) // 
     return array();
 } // }}}
 
+
+class themifier_breadcrumbs
+{
+    protected $_items = array();
+    protected $_labels;
+
+    public function __construct($auto = true)
+    {
+        $this->_labels = self::default_labels();
+        if ($auto) {
+            $this->_items = themifier_get_breadcrumbs();
+        }
+    }
+
+    public function append($label, $url = null)
+    {
+        $this->_items[] = compact('label', 'url');
+        return $this;
+    }
+
+    public static function get_labels()
+    {
+        return array(
+            'home'  => get_option('breadcrumbs_home', __('Home')),
+            '404'   => get_option('breadcrumbs_404',  __('Page not found')),
+        );
+    }
+
+    public function get_breadcrumbs()
+    {
+        if (is_home()) {
+            return array();
+        }
+
+        $labels = self::get_labels();
+
+        $breadcrumbs = array(
+            array(
+                'label' => $labels['home'],
+                'url'   => themifier_home_url(),
+            ),
+        );
+
+        switch (true) {
+            case is_category():
+                $obj = get_queried_object(); // category
+                if ($obj && isset($obj->term_id)) {
+                    $parents = array();
+                    foreach (themifier_get_category_parents($obj->term_id) as $parent) {
+                        array_unshift($parents, array(
+                            'label' => $parent->name,
+                            'url'   => get_category_link($parent->term_id),
+                        ));
+                    }
+                    $breadcrumbs = array_merge($breadcrumbs, $parents);
+                }
+                break;
+
+            case is_page():
+                $breadcrumbs[] = array(
+                    'label' => the_title('', '', false),
+                    'url'   => get_permalink(),
+                );
+                break;
+
+            case is_tag():
+                $breadcrumbs[] = array(
+                    'label' => single_tag_title('', false),
+                    'url'   => get_tag_link(get_queried_object_id()),
+                );
+                break;
+
+            case is_day():
+            case is_month():
+            case is_year():
+            case is_single():
+                $year = get_the_time('Y');
+                $month = get_the_time('m');
+                $day = get_the_time('j');
+
+                $breadcrumbs[] = array(
+                    'label' => $year,
+                    'url'   => get_year_link($year),
+                );
+
+                if (is_month() || is_day() || is_single()) {
+                    $breadcrumbs[] = array(
+                        'label' => get_the_time('F'),
+                        'url'   => get_month_link($year, $month),
+                    );
+                }
+                if (is_day() || is_single()) {
+                    $breadcrumbs[] = array(
+                        'label' => $day,
+                        'url'   => get_day_link($year, $month, $day),
+                    );
+                }
+                if (is_single()) {
+                    $breadcrumbs[] = array(
+                        'label' => get_the_title(),
+                        'url'   => get_permalink(),
+                    );
+                }
+                break;
+
+            case is_author():
+                $breadcrumbs[] = array(
+                    'label' => get_the_author(),
+                    'url'   => get_the_author_meta('url'),
+                );
+                break;
+
+            case is_search():
+                $breadcrumbs[] = array(
+                    'label' => _x('Search', 'Search widget'),
+                    'url'   => themifier_home_url() . '?s=' . urlencode($_GET['s']),
+                );
+                break;
+
+            case is_404():
+                $breadcrumbs[] = array(
+                    'label' => __('Page not found'),
+                    'url'   => null,
+                );
+                break;
+        }
+
+        if (get_query_var('page') > 1) {
+            $breadcrumbs[] = array(
+                'label' => sprintf(__('Page %s'), (int) get_query_var('page')),
+                'url'   => null,
+            );
+        }
+
+        return $breadcrumbs;
+    }
+}
+
 /**
  * @return array
  */
 function themifier_get_breadcrumbs() // {{{
 {
-    if (is_home()) {
-        return array();
-    }
-
-    $breadcrumbs = array(
-        array(
-            'label' => __('Home'),
-            'url'   => themifier_home_url(),
-        ),
-    );
-
-    switch (true) {
-        case is_category():
-            $obj = get_queried_object(); // category
-            if ($obj && isset($obj->term_id)) {
-                $parents = array();
-                foreach (themifier_get_category_parents($obj->term_id) as $parent) {
-                    array_unshift($parents, array(
-                        'label' => $parent->name,
-                        'url'   => get_category_link($parent->term_id),
-                    ));
-                }
-                $breadcrumbs = array_merge($breadcrumbs, $parents);
-            }
-            break;
-
-        case is_page():
-            $breadcrumbs[] = array(
-                'label' => the_title('', '', false),
-                'url'   => get_permalink(),
-            );
-            break;
-
-        case is_tag():
-            $breadcrumbs[] = array(
-                'label' => single_tag_title('', false),
-                'url'   => get_tag_link(get_queried_object_id()),
-            );
-            break;
-
-        case is_day():
-        case is_month():
-        case is_year():
-        case is_single():
-            $year = get_the_time('Y');
-            $month = get_the_time('m');
-            $day = get_the_time('j');
-
-            $breadcrumbs[] = array(
-                'label' => $year,
-                'url'   => get_year_link($year),
-            );
-
-            if (is_month() || is_day() || is_single()) {
-                $breadcrumbs[] = array(
-                    'label' => get_the_time('F'),
-                    'url'   => get_month_link($year, $month),
-                );
-            }
-            if (is_day() || is_single()) {
-                $breadcrumbs[] = array(
-                    'label' => $day,
-                    'url'   => get_day_link($year, $month, $day),
-                );
-            }
-            if (is_single()) {
-                $breadcrumbs[] = array(
-                    'label' => get_the_title(),
-                    'url'   => get_permalink(),
-                );
-            }
-            break;
-
-        case is_author():
-            $breadcrumbs[] = array(
-                'label' => get_the_author(),
-                'url'   => get_the_author_meta('url'),
-            );
-            break;
-
-        case is_search():
-            $breadcrumbs[] = array(
-                'label' => _x('Search', 'Search widget'),
-                'url'   => themifier_home_url() . '?s=' . urlencode($_GET['s']),
-            );
-            break;
-
-        case is_404():
-            $breadcrumbs[] = array(
-                'label' => __('Page not found'),
-                'url'   => null,
-            );
-            break;
-    }
-
-    if (get_query_var('page') > 1) {
-        $breadcrumbs[] = array(
-            'label' => sprintf(__('Page %s'), (int) get_query_var('page')),
-            'url'   => null,
-        );
-    }
-
-    return $breadcrumbs;
+    return themifier_breadcrumbs::get_breadcrumbs();
 } // }}}
 
 // if this file is the WP execution context register plugin hooks
